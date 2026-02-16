@@ -134,6 +134,8 @@ Examples:
 
 Generate only the commit message, nothing else."""
 
+    # Semantic boundary: Why section focuses on TECHNICAL problems (what's broken/missing/inadequate).
+    # Deployment context (new code, adoption status, timing) belongs in Notes section.
     @staticmethod
     def generate_why_prompt(
         user_intent: str,
@@ -156,12 +158,13 @@ Generate only the commit message, nothing else."""
         if len(changed_files) > 10:
             files_str += f"\n... and {len(changed_files) - 10} more files"
 
-        prompt = f"""Explain why this change is being made in 1-2 concise sentences (max 50 words total).
+        prompt = f"""Explain the technical problem this change solves in 1-2 concise sentences (max 50 words total).
 
 User's purpose: {user_intent}
 Files modified: {files_str}
 
-Focus on: What problem this solves and why it's needed.
+Focus on: What was broken, missing, or inadequate in the code that required this change.
+Stick to technical motivation only - do NOT mention deployment context, adoption status, or timing.
 Be direct and concise. No headers, bullet points, or extra formatting."""
 
         # Append feedback if this is a regeneration
@@ -247,6 +250,8 @@ Focus on addressing each piece of feedback while maintaining the overall structu
 
         return prompt
 
+    # Semantic boundary: Notes section captures DEPLOYMENT context (new/unused code, adoption status)
+    # and review guidance not covered by Impact section. Technical motivation belongs in Why section.
     @staticmethod
     def generate_notes_prompt(
         changed_files: List[str],
@@ -269,7 +274,11 @@ Focus on addressing each piece of feedback while maintaining the overall structu
 
         prompt = f"""List anything important for reviewers that was NOT already mentioned in the Impact section above.
 
-Focus on: dependencies, config changes, migrations, tricky review areas.
+Focus on deployment context and review guidance:
+- Current state of affected code (new/unused/experimental/deprecated/heavily-used)
+- When or where this will be used (adoption status, rollout plans, timing)
+- Dependencies, config changes, migrations
+- Tricky review areas or areas requiring extra scrutiny
 
 Requirements:
 - Do NOT repeat information from the Impact section
