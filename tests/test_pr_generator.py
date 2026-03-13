@@ -84,3 +84,50 @@ class TestPRPrompts:
 
         assert "diff --git" in summary
         assert "+new line" in summary
+
+
+class TestGenerateDescriptionWithRelatedPrs:
+    """Test that related_prs_context is threaded into section generation."""
+
+    def _make_generator(self):
+        mock_llm = Mock()
+        mock_llm.generate.return_value = "Generated content"
+        mock_git = Mock()
+        mock_git.get_changed_files.return_value = ["src/auth.py"]
+        mock_git.get_commit_messages.return_value = ["STAR-1: Add auth"]
+        mock_git.get_diff.return_value = ""
+        return PRGenerator(mock_llm, mock_git), mock_llm
+
+    def test_related_prs_context_added_to_system_prompt(self):
+        generator, mock_llm = self._make_generator()
+        generator.generate_description(
+            user_intent="add auth",
+            base_branch="main",
+            related_prs_context="This builds on #42.",
+        )
+        # Every LLM call should use an augmented system prompt
+        for call in mock_llm.generate.call_args_list:
+            system = call.kwargs.get("system") or ""
+            assert "This builds on #42." in system
+            # Context should appear BEFORE the base system prompt text
+            assert system.index("This builds on #42.") < system.index("You are")
+
+    def test_no_related_prs_context_uses_default_system_prompt(self):
+        generator, mock_llm = self._make_generator()
+        generator.generate_description(
+            user_intent="add auth",
+            base_branch="main",
+        )
+        for call in mock_llm.generate.call_args_list:
+            system = call.kwargs.get("system") or ""
+            # Default system prompt should be used — no extra context injected
+            assert "Context from related PRs" not in system
+
+    def test_generate_description_accepts_related_prs_context_param(self):
+        generator, _ = self._make_generator()
+        # Should not raise
+        generator.generate_description(
+            user_intent="add auth",
+            base_branch="main",
+            related_prs_context="",
+        )

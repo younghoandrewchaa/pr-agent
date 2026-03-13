@@ -181,3 +181,26 @@ class TestFindRelatedPrs:
             result = find_related_prs("acme", "myrepo", "STAR-2: Extend auth", "add OAuth", mock_client)
 
         assert result == "This builds on #42 which introduced auth."
+
+
+class TestFindRelatedPrsPrompt:
+    def test_prompt_includes_title_and_intent(self):
+        from src.prompts import PRPrompts
+        history = [{"pr_number": 1, "title": "PR 1", "description": "desc", "created_at": "2025-01-01T00:00:00Z"}]
+        prompt = PRPrompts.find_related_prs_prompt("STAR-2: New feature", "add OAuth", history)
+        assert "STAR-2: New feature" in prompt
+        assert "add OAuth" in prompt
+
+    def test_prompt_includes_history_entries(self):
+        from src.prompts import PRPrompts
+        history = [{"pr_number": 42, "title": "Old PR", "description": "Old desc", "created_at": "2025-01-01T00:00:00Z"}]
+        prompt = PRPrompts.find_related_prs_prompt("New PR", "intent", history)
+        assert "#42" in prompt
+        assert "Old PR" in prompt
+        assert "Old desc" in prompt
+
+    def test_prompt_instructs_llm_to_respond_with_NONE_when_unrelated(self):
+        from src.prompts import PRPrompts
+        history = [{"pr_number": 1, "title": "PR 1", "description": "desc", "created_at": "2025-01-01T00:00:00Z"}]
+        prompt = PRPrompts.find_related_prs_prompt("New PR", "intent", history)
+        assert "NONE" in prompt

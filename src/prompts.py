@@ -309,6 +309,39 @@ Focus on addressing each piece of feedback while maintaining the overall structu
         return prompt
 
     @staticmethod
+    def find_related_prs_prompt(title: str, intent: str, history: list) -> str:
+        """
+        Generate prompt for detecting associations between a new PR and previous ones.
+
+        Args:
+            title: New PR title
+            intent: User's stated purpose for the new PR
+            history: List of history entries (pr_number, title, description, created_at)
+
+        Returns:
+            Prompt for association detection.
+        """
+        history_text = "\n\n".join(
+            f"PR #{e['pr_number']} ({e['created_at'][:10]}): {e['title']}\n{e['description']}"
+            for e in history
+        )
+
+        return f"""You are reviewing a new pull request to see if it is related to any previous PRs in the same repository.
+
+New PR:
+Title: {title}
+Purpose: {intent}
+
+Previous PRs in this repository:
+{history_text}
+
+If any previous PRs are clearly related to the new one (same feature area, continuation of work, depends on, builds upon, or fixes issues introduced by), write a brief 1-2 sentence summary naming the related PRs by number and explaining the relationship.
+
+If no previous PRs are clearly related, respond with exactly: NONE
+
+Do not speculate. Only mention PRs with a clear, specific connection. Do not list PRs just because they touch similar files."""
+
+    @staticmethod
     def extract_diff_summary(diff: str, max_length: int = 1000) -> str:
         """
         Extract a meaningful summary from a git diff.

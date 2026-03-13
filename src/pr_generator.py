@@ -58,6 +58,17 @@ class PRGenerator:
         self.repo_path = repo_path
         self.prompts = PRPrompts()
 
+    def _build_system_prompt(self, related_prs_context: str = "") -> str:
+        """Build system prompt, optionally augmented with related PR context."""
+        if not related_prs_context:
+            return self.prompts.SYSTEM_PROMPT
+        return (
+            f"Context from related PRs previously created in this repository:\n"
+            f"{related_prs_context}\n\n"
+            f"Incorporate references to related PRs naturally where relevant in the description.\n\n"
+            f"{self.prompts.SYSTEM_PROMPT}"
+        )
+
     def generate_title(
         self,
         ticket_number: str,
@@ -77,6 +88,8 @@ class PRGenerator:
         """
         prompt = self.prompts.generate_title_prompt(ticket_number, branch_name, user_intent)
 
+        # Title generation uses the base system prompt — related PR context is only
+        # injected into description sections where it provides meaningful value.
         title = self.llm_client.generate(
             prompt=prompt,
             system=self.prompts.SYSTEM_PROMPT,
@@ -100,6 +113,7 @@ class PRGenerator:
         changed_files: List[str],
         diff: Optional[str] = None,
         feedback_history: Optional[List[str]] = None,
+        system_prompt: Optional[str] = None,
     ) -> str:
         """
         Generate "Why are you making this change?" section.
@@ -122,7 +136,7 @@ class PRGenerator:
 
         response = self.llm_client.generate(
             prompt=prompt,
-            system=self.prompts.SYSTEM_PROMPT,
+            system=system_prompt or self.prompts.SYSTEM_PROMPT,
             temperature=WHY_TEMPERATURE,
             max_tokens=WHY_MAX_TOKENS,
         )
@@ -135,6 +149,7 @@ class PRGenerator:
         commit_messages: List[str],
         diff: Optional[str] = None,
         feedback_history: Optional[List[str]] = None,
+        system_prompt: Optional[str] = None,
     ) -> str:
         """
         Generate "What are the possible impacts?" section.
@@ -157,7 +172,7 @@ class PRGenerator:
 
         response = self.llm_client.generate(
             prompt=prompt,
-            system=self.prompts.SYSTEM_PROMPT,
+            system=system_prompt or self.prompts.SYSTEM_PROMPT,
             temperature=IMPACT_TEMPERATURE,
             max_tokens=IMPACT_MAX_TOKENS,
         )
@@ -169,6 +184,7 @@ class PRGenerator:
         changed_files: List[str],
         diff: Optional[str] = None,
         feedback_history: Optional[List[str]] = None,
+        system_prompt: Optional[str] = None,
     ) -> str:
         """
         Generate "Anything else reviewers should know?" section.
@@ -190,7 +206,7 @@ class PRGenerator:
 
         response = self.llm_client.generate(
             prompt=prompt,
-            system=self.prompts.SYSTEM_PROMPT,
+            system=system_prompt or self.prompts.SYSTEM_PROMPT,
             temperature=NOTES_TEMPERATURE,
             max_tokens=NOTES_MAX_TOKENS,
         )
@@ -202,6 +218,7 @@ class PRGenerator:
         user_intent: str,
         base_branch: str = "main",
         feedback_history: Optional[List[str]] = None,
+        related_prs_context: str = "",
     ) -> str:
         """
         Generate complete PR description.
@@ -213,11 +230,13 @@ class PRGenerator:
             user_intent: User's description of change purpose
             base_branch: Base branch for diff comparison
             feedback_history: Optional list of user feedback from previous iterations
+            related_prs_context: Optional summary of related previous PRs to inject into the system prompt.
 
         Returns:
             Formatted PR description with all sections.
         """
         feedback_history = feedback_history or []
+        system_prompt = self._build_system_prompt(related_prs_context)
 
         # Get git information
         changed_files = self.git_ops.get_changed_files(base_branch)
@@ -253,17 +272,17 @@ class PRGenerator:
             if "why" in section_lower or i == 0:
                 # First section or "why" keyword - explain the change
                 sections[f"section_{i}"] = self.generate_why_section(
-                    user_intent, changed_files, diff, feedback_history
+                    user_intent, changed_files, diff, feedback_history, system_prompt=system_prompt
                 )
             elif "impact" in section_lower or i == 1:
                 # Second section or "impact" keyword - analyze impact
                 sections[f"section_{i}"] = self.generate_impact_section(
-                    changed_files, commit_messages, diff, feedback_history
+                    changed_files, commit_messages, diff, feedback_history, system_prompt=system_prompt
                 )
             else:
                 # Other sections - additional notes
                 sections[f"section_{i}"] = self.generate_notes_section(
-                    changed_files, diff, feedback_history
+                    changed_files, diff, feedback_history, system_prompt=system_prompt
                 )
 
         # Format into final description
