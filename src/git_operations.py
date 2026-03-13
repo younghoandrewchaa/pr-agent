@@ -279,6 +279,45 @@ class GitOperations:
         """
         return Path(self.repo.working_dir)
 
+    def generate_ticket_prefix(self) -> str:
+        """
+        Derive a 4-letter uppercase ticket prefix from the repository directory name.
+
+        Splits the directory name on non-alpha characters, collects the first
+        letter of each word, then cycles through the last word's remaining
+        characters until 4 letters are collected.
+
+        Returns:
+            4-letter uppercase prefix (e.g., "PAGE" for "pr-agent").
+            Falls back to "REPO" if the directory name has no alphabetic characters.
+        """
+        dir_name = Path(self.repo.working_dir).name
+
+        # Split on non-alpha characters and filter empty tokens
+        words = [w for w in re.split(r'[^a-zA-Z]+', dir_name) if w]
+
+        if not words:
+            return "REPO"
+
+        letters: List[str] = []
+
+        # Collect the first letter of each word
+        for word in words:
+            letters.append(word[0].upper())
+            if len(letters) == 4:
+                return ''.join(letters)
+
+        # Fewer than 4 letters — cycle through remaining chars of last word
+        last_word = words[-1].upper()
+        i = 1  # start after the first char (already collected above)
+        while len(letters) < 4:
+            if i >= len(last_word):
+                i = 0  # wrap to beginning of last word
+            letters.append(last_word[i])
+            i += 1
+
+        return ''.join(letters)
+
     def get_default_branch(self) -> Optional[str]:
         """
         Detect the default branch of the repository.
