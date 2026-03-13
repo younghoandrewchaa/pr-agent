@@ -32,6 +32,7 @@ from src.exceptions import (
     GitError,
     LLMError,
 )
+from src import pr_history
 
 console = Console()
 
@@ -240,6 +241,17 @@ def create(
         # Validate prerequisites first
         validate_prerequisites(git_ops, github_ops)
 
+        # Fetch repo info for PR history (best-effort — failures don't block PR creation)
+        owner = None
+        repo_name = None
+        try:
+            repo_info = github_ops.get_repo_info()
+        except Exception:
+            console.print("[yellow]Warning: could not fetch repo info — PR history disabled[/yellow]")
+        else:
+            owner = repo_info["owner"]
+            repo_name = repo_info["name"]
+
         # Initialize Copilot authenticator and get token
         console.print("[bold blue]Authenticating with GitHub Copilot...[/bold blue]")
         authenticator = CopilotAuthenticator(token_dir=cfg.copilot_token_dir)
@@ -390,6 +402,14 @@ def create(
                 user_intent=user_intent,
             )
 
+        # Find related PRs from history (skipped in dry-run)
+        related_prs_context = ""
+        if not dry_run and owner and repo_name:
+            with console.status("[bold cyan]Checking PR history for related PRs...[/bold cyan]"):
+                related_prs_context = pr_history.find_related_prs(
+                    owner, repo_name, title, user_intent, llm_client
+                )
+
         # Generate description with regeneration loop
         feedback_history = []
         max_iterations = 5  # Prevent infinite loops
@@ -406,11 +426,13 @@ def create(
                         user_intent=user_intent,
                         base_branch=cfg.default_base_branch,
                         feedback_history=feedback_history,
+                        related_prs_context=related_prs_context,
                     )
             else:
                 description = pr_generator.generate_description(
                     user_intent=user_intent,
                     base_branch=cfg.default_base_branch,
+                    related_prs_context=related_prs_context,
                 )
 
             # Display preview
@@ -471,6 +493,15 @@ def create(
                 draft=cfg.draft_pr,
                 web=cfg.open_in_browser,
             )
+
+        # Save PR to history
+        if owner and repo_name:
+            try:
+                pr_number = int(pr_url.rstrip("/").split("/")[-1])  # save_pr never raises internally
+            except (ValueError, IndexError):
+                console.print("[yellow]Warning: could not save PR to history[/yellow]")
+            else:
+                pr_history.save_pr(owner, repo_name, pr_number, title, description)
 
         # Success!
         console.print()
