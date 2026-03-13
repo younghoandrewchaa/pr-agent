@@ -4,6 +4,7 @@ CLI interface for pr-agent.
 Main command-line interface that orchestrates PR creation workflow.
 """
 
+import random
 import sys
 from pathlib import Path
 from typing import Optional
@@ -126,9 +127,11 @@ def get_ticket_number(
         except Exception as e:
             console.print(f"[yellow]AI extraction failed: {e}[/yellow]")
 
-    # Method 3: Manual input (fallback)
-    console.print(f"[yellow]Could not extract ticket number from branch '{branch_name}'[/yellow]")
-    ticket_number = Prompt.ask("Please enter ticket number (e.g., STAR-12345)", default="STAR-0000")
+    # Method 3: Auto-generate from repo directory name
+    prefix = git_ops.generate_ticket_prefix()
+    number = random.randint(10000, 99999)
+    ticket_number = f"{prefix}-{number}"
+    console.print(f"[green]✓ Auto-generated ticket number:[/green] {ticket_number}")
     return ticket_number
 
 
