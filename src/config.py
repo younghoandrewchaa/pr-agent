@@ -203,6 +203,7 @@ class Config:
             model: Model name override
             draft: Draft PR flag
             web: Open in browser flag
+            provider: LLM provider override ("copilot" or "claude-code")
 
         Returns:
             New Config instance with merged values.
@@ -250,6 +251,7 @@ def load_config(
         model: CLI model override
         draft: CLI draft flag
         web: CLI web flag
+        provider: CLI provider override ("copilot" or "claude-code")
 
     Returns:
         Merged configuration.

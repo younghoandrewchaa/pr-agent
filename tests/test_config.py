@@ -1,7 +1,5 @@
 """Tests for config module — provider and claude_code_bin fields."""
 
-import os
-import pytest
 from src.config import Config, load_config
 
 
