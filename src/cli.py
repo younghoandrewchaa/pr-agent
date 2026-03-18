@@ -7,7 +7,7 @@ Main command-line interface that orchestrates PR creation workflow.
 import random
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import click
 from rich.console import Console
@@ -19,7 +19,7 @@ from rich import print as rprint
 from src.config import load_config, Config
 from src.git_operations import GitOperations
 from src.github_operations import GitHubOperations
-from src.llm_client import CopilotClient
+from src.llm_client import CopilotClient, ClaudeCodeClient
 from src.pr_generator import PRGenerator
 from src.copilot_auth import CopilotAuthenticator
 from src.exceptions import (
@@ -79,7 +79,7 @@ def validate_prerequisites(
 def get_ticket_number(
     git_ops: GitOperations,
     config: Config,
-    llm_client: Optional[CopilotClient] = None,
+    llm_client: Optional[Union[CopilotClient, ClaudeCodeClient]] = None,
 ) -> str:
     """
     Extract or prompt for ticket number.
@@ -215,6 +215,13 @@ def cli():
 @click.option("--draft", "-d", is_flag=True, help="Create as draft PR")
 @click.option("--web", "-w", is_flag=True, help="Open PR in browser after creation")
 @click.option("--dry-run", is_flag=True, help="Preview PR without creating it")
+@click.option(
+    "--provider",
+    "-P",
+    type=click.Choice(["copilot", "claude-code"]),
+    default=None,
+    help="LLM provider to use (default: from config or 'copilot')",
+)
 def create(
     base_branch: Optional[str],
     model: Optional[str],
@@ -222,6 +229,7 @@ def create(
     draft: bool,
     web: bool,
     dry_run: bool,
+    provider: Optional[str],
 ):
     """Create a new pull request with AI-generated description."""
     try:
@@ -232,6 +240,7 @@ def create(
             model=model,
             draft=draft,
             web=web,
+            provider=provider,
         )
 
         # Initialize components
@@ -252,26 +261,35 @@ def create(
             owner = repo_info["owner"]
             repo_name = repo_info["name"]
 
-        # Initialize Copilot authenticator and get token
-        console.print("[bold blue]Authenticating with GitHub Copilot...[/bold blue]")
-        authenticator = CopilotAuthenticator(token_dir=cfg.copilot_token_dir)
-
-        try:
-            copilot_token = authenticator.get_copilot_token()
-            console.print("✓ Copilot authentication successful", style="green")
+        # Initialize LLM client based on configured provider
+        if cfg.provider == "claude-code":
+            llm_client = ClaudeCodeClient(
+                model=cfg.model,
+                executable=cfg.claude_code_bin,
+                timeout=cfg.copilot_timeout,
+            )
+            console.print("✓ Using Claude Code CLI as LLM provider", style="green")
             console.print()
-        except CopilotAuthError as e:
-            console.print(f"✗ {e}", style="red")
-            console.print("\n[yellow]To authenticate:[/yellow]")
-            console.print("  Run this command again and follow the device flow instructions.")
-            raise
+        else:
+            # Default: Copilot provider
+            console.print("[bold blue]Authenticating with GitHub Copilot...[/bold blue]")
+            authenticator = CopilotAuthenticator(token_dir=cfg.copilot_token_dir)
 
-        # Create LLM client with Copilot token
-        llm_client = CopilotClient(
-            api_base=cfg.copilot_api_base,
-            api_key=copilot_token,
-            timeout=cfg.copilot_timeout,
-        )
+            try:
+                copilot_token = authenticator.get_copilot_token()
+                console.print("✓ Copilot authentication successful", style="green")
+                console.print()
+            except CopilotAuthError as e:
+                console.print(f"✗ {e}", style="red")
+                console.print("\n[yellow]To authenticate:[/yellow]")
+                console.print("  Run this command again and follow the device flow instructions.")
+                raise
+
+            llm_client = CopilotClient(
+                api_base=cfg.copilot_api_base,
+                api_key=copilot_token,
+                timeout=cfg.copilot_timeout,
+            )
 
         # Auto-detect base branch if not explicitly set
         if not base_branch:  # Only auto-detect if user didn't specify
