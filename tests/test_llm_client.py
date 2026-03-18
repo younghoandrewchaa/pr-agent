@@ -55,9 +55,9 @@ class TestClaudeCodeClient:
     """Test Claude Code CLI client."""
 
     def test_initialization(self):
-        client = ClaudeCodeClient(model="claude-sonnet-4-6", bin="claude", timeout=30)
+        client = ClaudeCodeClient(model="claude-sonnet-4-6", executable="claude", timeout=30)
         assert client.model == "claude-sonnet-4-6"
-        assert client.bin == "claude"
+        assert client.executable == "claude"
         assert client.timeout == 30
 
     @patch("subprocess.run")

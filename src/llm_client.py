@@ -184,9 +184,9 @@ class CopilotClient:
 class ClaudeCodeClient:
     """Client for interacting with the Claude Code CLI subprocess."""
 
-    def __init__(self, model: str = "claude-sonnet-4-6", bin: str = "claude", timeout: int = 60):
+    def __init__(self, model: str = "claude-sonnet-4-6", executable: str = "claude", timeout: int = 60):
         self.model = model
-        self.bin = bin
+        self.executable = executable
         self.timeout = timeout
 
     def generate(
@@ -198,7 +198,7 @@ class ClaudeCodeClient:
     ) -> str:
         # temperature and max_tokens are accepted for interface compatibility but ignored —
         # the claude CLI does not expose these flags.
-        cmd = [self.bin, "-p", prompt, "--model", self.model]
+        cmd = [self.executable, "-p", prompt, "--model", self.model]
         if system:
             cmd += ["--system", system]
 
