@@ -1,7 +1,9 @@
 """
-GitHub Copilot LLM client module.
+LLM client module.
 
-Provides interface to interact with GitHub Copilot's Claude Haiku 4.5 model for text generation.
+Provides LLM client implementations for PR generation:
+- CopilotClient: calls the GitHub Copilot API
+- ClaudeCodeClient: invokes the `claude` CLI subprocess
 """
 
 import json

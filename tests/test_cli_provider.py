@@ -100,5 +100,4 @@ class TestCliProvider:
             )
 
         assert result.exit_code == 0
-        call_kwargs = mock_cc_cls.call_args[1]
-        assert call_kwargs.get("model") == "claude-sonnet-4-6"
+        assert mock_cc_cls.call_args.kwargs.get("model") == "claude-sonnet-4-6"
