@@ -5,6 +5,7 @@ Provides interface to interact with GitHub Copilot's Claude Haiku 4.5 model for 
 """
 
 import json
+import subprocess
 import uuid
 from typing import Optional, Dict, Any
 
@@ -178,3 +179,93 @@ class CopilotClient:
         )
 
         return response.strip()
+
+
+class ClaudeCodeClient:
+    """Client for interacting with the Claude Code CLI subprocess."""
+
+    def __init__(self, model: str = "claude-sonnet-4-6", bin: str = "claude", timeout: int = 60):
+        self.model = model
+        self.bin = bin
+        self.timeout = timeout
+
+    def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        # temperature and max_tokens are accepted for interface compatibility but ignored —
+        # the claude CLI does not expose these flags.
+        cmd = [self.bin, "-p", prompt, "--model", self.model]
+        if system:
+            cmd += ["--system", system]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
+        except FileNotFoundError:
+            raise LLMError("claude CLI not found. Is Claude Code installed and on PATH?")
+        except subprocess.TimeoutExpired:
+            raise LLMError("claude CLI timed out")
+
+        if result.returncode != 0:
+            raise LLMError(f"claude CLI failed: {result.stderr.strip()}")
+
+        content = result.stdout.strip()
+        if not content:
+            raise LLMError("claude CLI returned empty response")
+
+        return content
+
+    def generate_with_context(
+        self,
+        prompt: str,
+        context: Optional[str] = None,
+        max_context_length: int = 8000,
+    ) -> str:
+        full_prompt = prompt
+        if context:
+            if len(context) > max_context_length:
+                context = context[:max_context_length] + "\n\n... (diff truncated)"
+            full_prompt = f"{prompt}\n\nContext:\n{context}"
+        return self.generate(full_prompt)
+
+    def extract_ticket_number(
+        self,
+        branch_name: str,
+        ticket_prefix: str = "STAR",
+    ) -> Optional[str]:
+        from src.prompts import PRPrompts
+        import re
+
+        prompt = PRPrompts.extract_ticket_number_prompt(branch_name, ticket_prefix)
+        response = self.generate(prompt=prompt, temperature=0.1)
+        response = response.strip().upper()
+        if response == "NONE" or not response:
+            return None
+        match = re.search(rf"{ticket_prefix.upper()}-\d+", response)
+        if match:
+            return match.group(0)
+        return None
+
+    def generate_commit_message(
+        self,
+        ticket_number: str,
+        changed_files: list,
+        diff: str,
+    ) -> str:
+        from src.prompts import PRPrompts
+
+        diff_summary = PRPrompts.extract_diff_summary(diff, max_length=2000)
+        prompt = PRPrompts.generate_commit_message_prompt(
+            ticket_number=ticket_number,
+            changed_files=changed_files,
+            diff_summary=diff_summary,
+        )
+        return self.generate(prompt=prompt, temperature=0.3).strip()
