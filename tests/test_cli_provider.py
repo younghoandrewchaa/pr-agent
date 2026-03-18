@@ -53,6 +53,7 @@ class TestCliProvider:
             runner = CliRunner()
             result = runner.invoke(cli, ["create", "--dry-run"], input="test intent\ny\n")
 
+        assert result.exit_code == 0
         mock_auth.return_value.get_copilot_token.assert_called_once()
         mock_copilot_cls.assert_called_once()
 
@@ -75,6 +76,7 @@ class TestCliProvider:
                 input="test intent\ny\n"
             )
 
+        assert result.exit_code == 0
         mock_auth.return_value.get_copilot_token.assert_not_called()
         mock_copilot_cls.assert_not_called()
         mock_cc_cls.assert_called_once()
@@ -91,11 +93,12 @@ class TestCliProvider:
              patch("src.cli.pr_history"):
             mock_cc_cls.return_value.extract_ticket_number.return_value = None
             runner = CliRunner()
-            runner.invoke(
+            result = runner.invoke(
                 cli,
                 ["create", "--provider", "claude-code", "--model", "claude-sonnet-4-6", "--dry-run"],
                 input="test intent\ny\n"
             )
 
+        assert result.exit_code == 0
         call_kwargs = mock_cc_cls.call_args[1]
         assert call_kwargs.get("model") == "claude-sonnet-4-6"
