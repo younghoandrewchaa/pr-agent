@@ -5,9 +5,9 @@ Coordinates LLM calls to generate comprehensive PR titles and descriptions
 using git information and user input.
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 
-from src.llm_client import CopilotClient
+from src.llm_client import CopilotClient, ClaudeCodeClient
 from src.prompts import PRPrompts
 from src.git_operations import GitOperations
 from src.template_parser import get_pr_template_sections
@@ -35,7 +35,7 @@ class PRGenerator:
 
     def __init__(
         self,
-        llm_client: CopilotClient,
+        llm_client: Union[CopilotClient, ClaudeCodeClient],
         git_ops: GitOperations,
         model: str = "claude-haiku-4.5",
         max_diff_tokens: int = 8000,

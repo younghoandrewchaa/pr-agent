@@ -1,7 +1,7 @@
 """Integration tests for --provider flag in the create command."""
 
 from click.testing import CliRunner
-from unittest.mock import Mock, patch, ANY
+from unittest.mock import Mock, patch
 
 from src.cli import cli
 
