@@ -1,8 +1,9 @@
 """Tests for LLM client module."""
 
+import subprocess
 import pytest
 from unittest.mock import Mock, patch
-from src.llm_client import CopilotClient
+from src.llm_client import CopilotClient, ClaudeCodeClient
 from src.exceptions import LLMError
 
 
@@ -48,10 +49,6 @@ class TestCopilotClient:
         client = CopilotClient(api_base="https://api.githubcopilot.com", api_key="invalid-key")
         with pytest.raises(LLMError, match="authentication failed"):
             client.generate("Test prompt")
-
-
-import subprocess
-from src.llm_client import ClaudeCodeClient
 
 
 class TestClaudeCodeClient:
