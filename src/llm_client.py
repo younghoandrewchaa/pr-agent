@@ -226,9 +226,13 @@ class VertexAIClient:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
+        # thinking_budget caps how many tokens the model spends on internal reasoning.
+        # Without a budget, gemini-2.5-flash thinks until it hits the model's absolute
+        # token ceiling and produces zero output (finish_reason=MAX_TOKENS).
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=temperature,
+            thinking_config=types.ThinkingConfig(thinking_budget=4096),
             **({"max_output_tokens": max_tokens} if max_tokens is not None else {}),
         )
 
@@ -249,7 +253,8 @@ class VertexAIClient:
         # Extract text from response. response.text raises when there are no output
         # text parts (e.g. only thinking parts). Fall back to manual extraction.
         try:
-            content = response.text.strip()
+            raw = response.text
+            content = raw.strip() if raw is not None else ""
         except Exception as exc:
             content = ""
             candidates = getattr(response, "candidates", None) or []
