@@ -9,8 +9,8 @@ Provides LLM client implementations for PR generation:
 import google.auth
 import google.auth.exceptions
 import google.api_core.exceptions
-import vertexai
-import vertexai.generative_models
+from google import genai
+from google.genai import types
 import json
 import os
 import uuid
@@ -217,14 +217,7 @@ class VertexAIClient:
                 or "europe-west2"
             )
 
-        vertexai.init(project=project, location=location)
-
-    def _get_model(self, system: Optional[str]) -> vertexai.generative_models.GenerativeModel:
-        kwargs: Dict[str, Any] = {}
-        if system:
-            kwargs["system_instruction"] = system
-
-        return vertexai.generative_models.GenerativeModel(self.model, **kwargs)
+        self.client = genai.Client(vertexai=True, project=project, location=location)
 
     def generate(
         self,
@@ -233,16 +226,18 @@ class VertexAIClient:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
-        from vertexai.generative_models import GenerationConfig
-
-        generation_config = GenerationConfig(
+        config = types.GenerateContentConfig(
+            system_instruction=system,
             temperature=temperature,
             max_output_tokens=max_tokens if max_tokens is not None else 2048,
         )
 
         try:
-            model = self._get_model(system)
-            response = model.generate_content(prompt, generation_config=generation_config)
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            )
         except google.auth.exceptions.DefaultCredentialsError as exc:
             raise LLMError(
                 "Vertex AI: no credentials found. "

@@ -247,7 +247,6 @@ def create(
         git_ops = GitOperations()
         github_ops = GitHubOperations()
 
-        # Validate prerequisites first
         validate_prerequisites(git_ops, github_ops)
 
         # Fetch repo info for PR history (best-effort — failures don't block PR creation)
