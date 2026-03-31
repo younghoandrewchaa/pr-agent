@@ -133,10 +133,10 @@ class TestVertexAIClient:
     @patch("src.llm_client.genai.Client")
     @patch("src.llm_client.google.auth.default")
     def test_generate_api_error_raises_llm_error(self, mock_auth, mock_client_cls):
-        import google.api_core.exceptions
+        from google.genai import errors as genai_errors
         mock_auth.return_value = (None, "proj")
         mock_client_cls.return_value.models.generate_content.side_effect = (
-            google.api_core.exceptions.GoogleAPIError("quota exceeded")
+            genai_errors.APIError(code=429, response_json={"error": {"message": "quota exceeded"}})
         )
         from src.llm_client import VertexAIClient
         client = VertexAIClient(project="proj", location="us-central1")

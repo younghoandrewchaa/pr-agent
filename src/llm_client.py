@@ -8,9 +8,9 @@ Provides LLM client implementations for PR generation:
 
 import google.auth
 import google.auth.exceptions
-import google.api_core.exceptions
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
 import json
 import os
 import uuid
@@ -226,14 +226,11 @@ class VertexAIClient:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
-        # thinking_budget caps how many tokens the model spends on internal reasoning.
-        # Without a budget, gemini-2.5-flash thinks until it hits the model's absolute
-        # token ceiling and produces zero output (finish_reason=MAX_TOKENS).
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_budget=4096),
-            **({"max_output_tokens": max_tokens} if max_tokens is not None else {}),
+            thinking_config=types.ThinkingConfig(thinking_budget=8192),
+            max_output_tokens=32768,
         )
 
         try:
@@ -247,7 +244,7 @@ class VertexAIClient:
                 "Vertex AI: no credentials found. "
                 "Run `gcloud auth application-default login` to set up credentials."
             ) from exc
-        except google.api_core.exceptions.GoogleAPIError as exc:
+        except genai_errors.APIError as exc:
             raise LLMError(f"Vertex AI API error: {exc}") from exc
 
         # Extract text from response. response.text raises when there are no output
