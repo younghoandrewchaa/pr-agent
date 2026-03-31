@@ -235,12 +235,10 @@ class VertexAIClient:
     ) -> str:
         from vertexai.generative_models import GenerationConfig
 
-        generation_config = GenerationConfig(temperature=temperature)
-        if max_tokens is not None:
-            generation_config = GenerationConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            )
+        generation_config = GenerationConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens if max_tokens is not None else 2048,
+        )
 
         try:
             model = self._get_model(system)
@@ -253,7 +251,10 @@ class VertexAIClient:
         except google.api_core.exceptions.GoogleAPIError as exc:
             raise LLMError(f"Vertex AI API error: {exc}") from exc
 
-        content = response.text.strip() if hasattr(response, "text") else ""
+        try:
+            content = response.text.strip()
+        except Exception:
+            content = ""
         if not content:
             raise LLMError("Vertex AI returned empty response")
 
