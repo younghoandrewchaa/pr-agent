@@ -101,3 +101,103 @@ class TestCliProvider:
 
         assert result.exit_code == 0
         assert mock_cc_cls.call_args.kwargs.get("model") == "claude-sonnet-4-6"
+
+class TestCliVertexProvider:
+
+    def test_vertex_provider_instantiates_vertex_client(self):
+        """--provider vertex creates a VertexAIClient, skips Copilot auth."""
+        mock_git, mock_github, mock_gen = _base_mocks()
+        mock_auth = Mock()
+
+        with patch("src.cli.GitOperations", return_value=mock_git), \
+             patch("src.cli.GitHubOperations", return_value=mock_github), \
+             patch("src.cli.CopilotAuthenticator", mock_auth), \
+             patch("src.cli.CopilotClient") as mock_copilot_cls, \
+             patch("src.cli.VertexAIClient") as mock_vertex_cls, \
+             patch("src.cli.PRGenerator", return_value=mock_gen), \
+             patch("src.cli.pr_history"):
+            mock_vertex_cls.return_value.extract_ticket_number.return_value = None
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["create", "--provider", "vertex", "--dry-run"],
+                input="test intent\ny\n"
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_auth.return_value.get_copilot_token.assert_not_called()
+        mock_copilot_cls.assert_not_called()
+        mock_vertex_cls.assert_called_once()
+
+    def test_vertex_provider_default_model_substitution(self):
+        """When model is still claude-haiku-4.5 (default), vertex uses gemini-2.5-flash."""
+        mock_git, mock_github, mock_gen = _base_mocks()
+
+        with patch("src.cli.GitOperations", return_value=mock_git), \
+             patch("src.cli.GitHubOperations", return_value=mock_github), \
+             patch("src.cli.CopilotAuthenticator"), \
+             patch("src.cli.VertexAIClient") as mock_vertex_cls, \
+             patch("src.cli.PRGenerator", return_value=mock_gen), \
+             patch("src.cli.pr_history"), \
+             patch("src.cli.load_config") as mock_load_config:
+            from src.config import Config
+            mock_load_config.return_value = Config(provider="vertex", model="claude-haiku-4.5")
+            mock_vertex_cls.return_value.extract_ticket_number.return_value = None
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["create", "--provider", "vertex", "--dry-run"],
+                input="test intent\ny\n"
+            )
+
+        assert result.exit_code == 0, result.output
+        assert mock_vertex_cls.call_args.kwargs.get("model") == "gemini-2.5-flash"
+
+    def test_vertex_provider_respects_explicit_model(self):
+        """When --model is set explicitly, it is passed to VertexAIClient."""
+        mock_git, mock_github, mock_gen = _base_mocks()
+
+        with patch("src.cli.GitOperations", return_value=mock_git), \
+             patch("src.cli.GitHubOperations", return_value=mock_github), \
+             patch("src.cli.CopilotAuthenticator"), \
+             patch("src.cli.VertexAIClient") as mock_vertex_cls, \
+             patch("src.cli.PRGenerator", return_value=mock_gen), \
+             patch("src.cli.pr_history"):
+            mock_vertex_cls.return_value.extract_ticket_number.return_value = None
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["create", "--provider", "vertex", "--model", "gemini-2.0-flash", "--dry-run"],
+                input="test intent\ny\n"
+            )
+
+        assert result.exit_code == 0, result.output
+        assert mock_vertex_cls.call_args.kwargs.get("model") == "gemini-2.0-flash"
+
+    def test_vertex_provider_passes_project_and_location_from_config(self):
+        """vertex_project and vertex_location from config are forwarded to VertexAIClient."""
+        mock_git, mock_github, mock_gen = _base_mocks()
+
+        with patch("src.cli.GitOperations", return_value=mock_git), \
+             patch("src.cli.GitHubOperations", return_value=mock_github), \
+             patch("src.cli.CopilotAuthenticator"), \
+             patch("src.cli.VertexAIClient") as mock_vertex_cls, \
+             patch("src.cli.PRGenerator", return_value=mock_gen), \
+             patch("src.cli.pr_history"), \
+             patch("src.cli.load_config") as mock_load_config:
+            from src.config import Config
+            cfg = Config(
+                provider="vertex",
+                vertex_project="my-gcp-project",
+                vertex_location="europe-west4",
+            )
+            mock_load_config.return_value = cfg
+            mock_vertex_cls.return_value.extract_ticket_number.return_value = None
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["create", "--provider", "vertex", "--dry-run"],
+                input="test intent\ny\n"
+            )
+
+        assert result.exit_code == 0, result.output
+        call_kwargs = mock_vertex_cls.call_args.kwargs
+        assert call_kwargs.get("project") == "my-gcp-project"
+        assert call_kwargs.get("location") == "europe-west4"
