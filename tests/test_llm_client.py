@@ -196,3 +196,16 @@ class TestVertexAIClient:
         result = client.generate_commit_message("STAR-1", ["src/llm_client.py"], "diff content")
         assert result == "STAR-1: add vertex AI support"
 
+    @patch("src.llm_client.genai.Client")
+    @patch("src.llm_client.google.auth.default")
+    def test_generate_with_timeout(self, mock_auth, mock_client_cls):
+        mock_auth.return_value = (None, "proj")
+        mock_response = Mock()
+        mock_response.text = "Response"
+        mock_client_cls.return_value.models.generate_content.return_value = mock_response
+        from src.llm_client import VertexAIClient
+        client = VertexAIClient(project="proj", location="us-central1", timeout=45)
+        client.generate("prompt")
+        call_kwargs = mock_client_cls.return_value.models.generate_content.call_args.kwargs
+        assert call_kwargs["request_options"] == {"timeout": 45}
+
