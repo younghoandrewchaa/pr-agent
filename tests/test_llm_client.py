@@ -62,17 +62,20 @@ class TestVertexAIClient:
         from src.llm_client import VertexAIClient
         client = VertexAIClient(project="proj", location="loc", model="gemini-2.5-flash")
         assert client.model == "gemini-2.5-flash"
-        mock_client_cls.assert_called_once_with(vertexai=True, project="proj", location="loc")
+        kw = mock_client_cls.call_args.kwargs
+        assert kw["vertexai"] is True
+        assert kw["project"] == "proj"
+        assert kw["location"] == "loc"
 
     @patch("src.llm_client.genai.Client")
     @patch("src.llm_client.google.auth.default")
     def test_auto_detect_project_from_adc(self, mock_auth, mock_client_cls):
         mock_auth.return_value = (None, "detected-project")
         from src.llm_client import VertexAIClient
-        client = VertexAIClient()
-        mock_client_cls.assert_called_once_with(
-            vertexai=True, project="detected-project", location="europe-west2"
-        )
+        VertexAIClient()
+        kw = mock_client_cls.call_args.kwargs
+        assert kw["project"] == "detected-project"
+        assert kw["location"] == "europe-west2"
 
     @patch("src.llm_client.genai.Client")
     @patch("src.llm_client.google.auth.default")
@@ -80,10 +83,10 @@ class TestVertexAIClient:
         mock_auth.return_value = (None, "proj")
         monkeypatch.setenv("GOOGLE_CLOUD_REGION", "europe-west1")
         from src.llm_client import VertexAIClient
-        client = VertexAIClient(project="proj")
-        mock_client_cls.assert_called_once_with(
-            vertexai=True, project="proj", location="europe-west1"
-        )
+        VertexAIClient(project="proj")
+        kw = mock_client_cls.call_args.kwargs
+        assert kw["project"] == "proj"
+        assert kw["location"] == "europe-west1"
 
     @patch("src.llm_client.genai.Client")
     @patch("src.llm_client.google.auth.default")

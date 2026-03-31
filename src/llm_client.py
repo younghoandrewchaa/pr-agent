@@ -217,7 +217,12 @@ class VertexAIClient:
                 or "europe-west2"
             )
 
-        self.client = genai.Client(vertexai=True, project=project, location=location)
+        self.client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location,
+            http_options=types.HttpOptions(timeout=timeout * 1000),  # milliseconds
+        )
 
     def generate(
         self,
@@ -229,7 +234,7 @@ class VertexAIClient:
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_budget=8192),
+            thinking_config=types.ThinkingConfig(thinking_budget=1024),
             max_output_tokens=32768,
         )
 
