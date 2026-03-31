@@ -214,7 +214,7 @@ class VertexAIClient:
             location = (
                 os.environ.get("GOOGLE_CLOUD_REGION")
                 or os.environ.get("CLOUDSDK_COMPUTE_REGION")
-                or "eu-west1"
+                or "europe-west2"
             )
 
         vertexai.init(project=project, location=location)

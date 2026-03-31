@@ -55,7 +55,7 @@ class TestCopilotClient:
 class TestVertexAIClient:
     """Test for Vertex AI client."""
 
-    def _make_client(self, mock_vertexai_init, mock_auth, project="my-project", location="eu-west1"):
+    def _make_client(self, mock_vertexai_init, mock_auth, project="my-project", location="europe-west2"):
         mock_auth_return_value = (None, project)
         from src.llm_client import VertexAIClient
         return VertexAIClient(project=project, location=location, model="gemini-2.5-flash")
@@ -75,7 +75,7 @@ class TestVertexAIClient:
         mock_auth.return_value = (None, "detected-project")
         from src.llm_client import VertexAIClient
         client = VertexAIClient()
-        mock_init.assert_called_once_with(project="detected-project", location="eu-west1")
+        mock_init.assert_called_once_with(project="detected-project", location="europe-west2")
 
     @patch("src.llm_client.vertexai.init")
     @patch("src.llm_client.google.auth.default")
