@@ -21,11 +21,12 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "click>=8.1.0",        # CLI framework
-    "requests>=2.31.0",    # HTTP for Ollama API
-    "pyyaml>=6.0",        # Config parsing
-    "gitpython>=3.1.0",   # Git operations
-    "rich>=13.0.0",       # Terminal UI
+    "click>=8.1.0",         # CLI framework
+    "requests>=2.31.0",     # HTTP for Ollama API
+    "pyyaml>=6.0",          # Config parsing
+    "gitpython>=3.1.0",     # Git operations
+    "rich>=13.0.0",         # Terminal UI
+    "google-cloud-aiplatform>=1.60.0",
 ]
 
 [project.optional-dependencies]
