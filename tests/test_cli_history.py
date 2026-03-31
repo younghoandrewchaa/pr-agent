@@ -49,7 +49,7 @@ class TestCliPrHistory:
     def _run_create(self, mock_git, mock_github, mock_auth, mock_llm_cls, mock_gen_cls,
                     extra_input="add auth\ny\ny\n", extra_args=None, mock_history=None):
         runner = CliRunner()
-        args = ["create"] + (extra_args or [])
+        args = ["create", "--provider", "copilot"] + (extra_args or [])
         with patch("src.cli.GitOperations", return_value=mock_git), \
              patch("src.cli.GitHubOperations", return_value=mock_github), \
              patch("src.cli.CopilotAuthenticator", mock_auth), \

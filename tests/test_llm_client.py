@@ -1,10 +1,9 @@
 """Tests for LLM client module."""
 
 import os
-import subprocess
 import pytest
 from unittest.mock import Mock, patch
-from src.llm_client import CopilotClient, ClaudeCodeClient
+from src.llm_client import CopilotClient, VertexAIClient
 from src.exceptions import LLMError
 
 
@@ -52,75 +51,6 @@ class TestCopilotClient:
         with pytest.raises(LLMError, match="authentication failed"):
             client.generate("Test prompt")
 
-
-class TestClaudeCodeClient:
-    """Test Claude Code CLI client."""
-
-    def test_initialization(self):
-        client = ClaudeCodeClient(model="claude-sonnet-4-6", executable="claude", timeout=30)
-        assert client.model == "claude-sonnet-4-6"
-        assert client.executable == "claude"
-        assert client.timeout == 30
-
-    @patch("subprocess.run")
-    def test_generate_success(self, mock_run):
-        mock_run.return_value = Mock(returncode=0, stdout="Generated content\n", stderr="")
-        client = ClaudeCodeClient()
-        result = client.generate("Test prompt")
-        assert result == "Generated content"
-
-    @patch("subprocess.run")
-    def test_generate_with_system_prompt(self, mock_run):
-        mock_run.return_value = Mock(returncode=0, stdout="Response\n", stderr="")
-        client = ClaudeCodeClient()
-        client.generate("Test prompt", system="You are helpful.")
-        args = mock_run.call_args[0][0]
-        assert "--system" in args
-        assert "You are helpful." in args
-
-    @patch("subprocess.run")
-    def test_generate_passes_model_flag(self, mock_run):
-        mock_run.return_value = Mock(returncode=0, stdout="Response\n", stderr="")
-        client = ClaudeCodeClient(model="claude-sonnet-4-6")
-        client.generate("prompt")
-        args = mock_run.call_args[0][0]
-        assert "--model" in args
-        assert "claude-sonnet-4-6" in args
-
-    @patch("subprocess.run", side_effect=FileNotFoundError)
-    def test_generate_binary_not_found(self, mock_run):
-        client = ClaudeCodeClient()
-        with pytest.raises(LLMError, match="claude CLI not found"):
-            client.generate("prompt")
-
-    @patch("subprocess.run")
-    def test_generate_nonzero_exit(self, mock_run):
-        mock_run.return_value = Mock(returncode=1, stdout="", stderr="some error")
-        client = ClaudeCodeClient()
-        with pytest.raises(LLMError, match="claude CLI failed"):
-            client.generate("prompt")
-
-    @patch("subprocess.run")
-    def test_generate_empty_response(self, mock_run):
-        mock_run.return_value = Mock(returncode=0, stdout="   \n", stderr="")
-        client = ClaudeCodeClient()
-        with pytest.raises(LLMError, match="empty response"):
-            client.generate("prompt")
-
-    @patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=60))
-    def test_generate_timeout(self, mock_run):
-        client = ClaudeCodeClient()
-        with pytest.raises(LLMError, match="timed out"):
-            client.generate("prompt")
-
-    @patch("subprocess.run")
-    def test_generate_with_context_truncates(self, mock_run):
-        mock_run.return_value = Mock(returncode=0, stdout="ok\n", stderr="")
-        client = ClaudeCodeClient()
-        long_context = "x" * 10000
-        client.generate_with_context("prompt", context=long_context, max_context_length=100)
-        call_prompt = mock_run.call_args[0][0][2]  # -p arg
-        assert "... (diff truncated)" in call_prompt
 
 class TestVertexAIClient:
     """Test for Vertex AI client."""

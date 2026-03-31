@@ -38,7 +38,7 @@ def _base_mocks():
 class TestCliProvider:
 
     def test_copilot_provider_triggers_auth(self):
-        """Default (copilot) provider runs Copilot auth."""
+        """copilot provider runs Copilot auth."""
         mock_git, mock_github, mock_gen = _base_mocks()
         mock_auth = Mock()
         mock_auth.return_value.get_copilot_token.return_value = "token"
@@ -51,56 +51,11 @@ class TestCliProvider:
              patch("src.cli.pr_history"):
             mock_copilot_cls.return_value.extract_ticket_number.return_value = None
             runner = CliRunner()
-            result = runner.invoke(cli, ["create", "--dry-run"], input="test intent\ny\n")
+            result = runner.invoke(cli, ["create", "--provider", "copilot", "--dry-run"], input="test intent\ny\n")
 
         assert result.exit_code == 0
         mock_auth.return_value.get_copilot_token.assert_called_once()
         mock_copilot_cls.assert_called_once()
-
-    def test_claude_code_provider_skips_auth(self):
-        """claude-code provider skips Copilot authentication entirely."""
-        mock_git, mock_github, mock_gen = _base_mocks()
-        mock_auth = Mock()
-
-        with patch("src.cli.GitOperations", return_value=mock_git), \
-             patch("src.cli.GitHubOperations", return_value=mock_github), \
-             patch("src.cli.CopilotAuthenticator", mock_auth), \
-             patch("src.cli.ClaudeCodeClient") as mock_cc_cls, \
-             patch("src.cli.CopilotClient") as mock_copilot_cls, \
-             patch("src.cli.PRGenerator", return_value=mock_gen), \
-             patch("src.cli.pr_history"):
-            mock_cc_cls.return_value.extract_ticket_number.return_value = None
-            runner = CliRunner()
-            result = runner.invoke(
-                cli, ["create", "--provider", "claude-code", "--dry-run"],
-                input="test intent\ny\n"
-            )
-
-        assert result.exit_code == 0
-        mock_auth.return_value.get_copilot_token.assert_not_called()
-        mock_copilot_cls.assert_not_called()
-        mock_cc_cls.assert_called_once()
-
-    def test_claude_code_provider_passes_model(self):
-        """ClaudeCodeClient receives the model from --model flag."""
-        mock_git, mock_github, mock_gen = _base_mocks()
-
-        with patch("src.cli.GitOperations", return_value=mock_git), \
-             patch("src.cli.GitHubOperations", return_value=mock_github), \
-             patch("src.cli.CopilotAuthenticator"), \
-             patch("src.cli.ClaudeCodeClient") as mock_cc_cls, \
-             patch("src.cli.PRGenerator", return_value=mock_gen), \
-             patch("src.cli.pr_history"):
-            mock_cc_cls.return_value.extract_ticket_number.return_value = None
-            runner = CliRunner()
-            result = runner.invoke(
-                cli,
-                ["create", "--provider", "claude-code", "--model", "claude-sonnet-4-6", "--dry-run"],
-                input="test intent\ny\n"
-            )
-
-        assert result.exit_code == 0
-        assert mock_cc_cls.call_args.kwargs.get("model") == "claude-sonnet-4-6"
 
 class TestCliVertexProvider:
 
@@ -128,8 +83,8 @@ class TestCliVertexProvider:
         mock_copilot_cls.assert_not_called()
         mock_vertex_cls.assert_called_once()
 
-    def test_vertex_provider_default_model_substitution(self):
-        """When model is still claude-haiku-4.5 (default), vertex uses gemini-2.5-flash."""
+    def test_vertex_provider_passes_default_model(self):
+        """Default model (gemini-2.5-flash) is passed to VertexAIClient."""
         mock_git, mock_github, mock_gen = _base_mocks()
 
         with patch("src.cli.GitOperations", return_value=mock_git), \
@@ -140,7 +95,7 @@ class TestCliVertexProvider:
              patch("src.cli.pr_history"), \
              patch("src.cli.load_config") as mock_load_config:
             from src.config import Config
-            mock_load_config.return_value = Config(provider="vertex", model="claude-haiku-4.5")
+            mock_load_config.return_value = Config(provider="vertex")
             mock_vertex_cls.return_value.extract_ticket_number.return_value = None
             runner = CliRunner()
             result = runner.invoke(
