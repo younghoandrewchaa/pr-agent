@@ -229,7 +229,7 @@ class VertexAIClient:
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=temperature,
-            max_output_tokens=max_tokens if max_tokens is not None else 2048,
+            **({"max_output_tokens": max_tokens} if max_tokens is not None else {}),
         )
 
         try:
