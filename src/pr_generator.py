@@ -7,7 +7,7 @@ using git information and user input.
 
 from typing import List, Optional, Dict, Union
 
-from src.llm_client import CopilotClient, ClaudeCodeClient
+from src.llm_client import CopilotClient, VertexAIClient
 from src.prompts import PRPrompts
 from src.git_operations import GitOperations
 from src.template_parser import get_pr_template_sections
@@ -35,9 +35,9 @@ class PRGenerator:
 
     def __init__(
         self,
-        llm_client: Union[CopilotClient, ClaudeCodeClient],
+        llm_client: Union[CopilotClient, VertexAIClient],
         git_ops: GitOperations,
-        model: str = "claude-haiku-4.5",
+        model: str = "gemini-2.5-flash",
         max_diff_tokens: int = 8000,
         repo_path: Optional[str] = None,
     ):

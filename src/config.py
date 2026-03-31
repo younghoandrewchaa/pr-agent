@@ -23,15 +23,18 @@ class Config:
     """Configuration for pr-agent."""
 
     # Model settings
-    model: str = "claude-haiku-4.5"
+    model: str = "gemini-2.5-flash"
     copilot_api_base: str = "https://api.githubcopilot.com"
     copilot_api_key: Optional[str] = None
     copilot_timeout: int = 60
     copilot_token_dir: Optional[str] = None
 
     # Provider settings
-    provider: str = "copilot"
-    claude_code_bin: str = "claude"
+    provider: str = "vertex"
+
+    # Vertex AI settings
+    vertex_project: Optional[str] = None
+    vertex_location: Optional[str] = None
 
     # Git settings
     default_base_branch: str = "main"
@@ -101,7 +104,8 @@ class Config:
             "draft_pr",
             "open_in_browser",
             "provider",
-            "claude_code_bin",
+            "vertex_project",
+            "vertex_location",
         }
 
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
@@ -132,7 +136,8 @@ class Config:
             "PR_AGENT_TICKET_PATTERN": "ticket_pattern",
             "PR_AGENT_MAX_DIFF_TOKENS": "max_diff_tokens",
             "PR_AGENT_PROVIDER": "provider",
-            "PR_AGENT_CLAUDE_BIN": "claude_code_bin",
+            "PR_AGENT_VERTEX_PROJECT": "vertex_project",
+            "PR_AGENT_VERTEX_LOCATION": "vertex_location",
         }
 
         for env_var, attr_name in env_mapping.items():
@@ -174,7 +179,8 @@ class Config:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         default_config = {
-            "model": "claude-haiku-4.5",
+            "model": "gemini-2.5-flash",
+            "provider": "vertex",
             "copilot_api_base": "https://api.githubcopilot.com",
             "copilot_timeout": 60,
             "default_base_branch": "main",
@@ -203,12 +209,11 @@ class Config:
             model: Model name override
             draft: Draft PR flag
             web: Open in browser flag
-            provider: LLM provider override ("copilot" or "claude-code")
+            provider: LLM provider override
 
         Returns:
             New Config instance with merged values.
         """
-        # Create a copy of current config
         new_config = Config(
             model=model or self.model,
             copilot_api_base=self.copilot_api_base,
@@ -222,7 +227,8 @@ class Config:
             draft_pr=draft if draft is not None else self.draft_pr,
             open_in_browser=web if web is not None else self.open_in_browser,
             provider=provider or self.provider,
-            claude_code_bin=self.claude_code_bin,
+            vertex_project=self.vertex_project,
+            vertex_location=self.vertex_location,
         )
 
         return new_config
@@ -273,7 +279,8 @@ def load_config(
             "ticket_pattern",
             "max_diff_tokens",
             "provider",
-            "claude_code_bin",
+            "vertex_project",
+            "vertex_location",
         ]:
             file_value = getattr(file_config, attr)
             # Only use file value if it's not the default

@@ -19,7 +19,7 @@ from rich import print as rprint
 from src.config import load_config, Config
 from src.git_operations import GitOperations
 from src.github_operations import GitHubOperations
-from src.llm_client import CopilotClient, ClaudeCodeClient
+from src.llm_client import CopilotClient, VertexAIClient
 from src.pr_generator import PRGenerator
 from src.copilot_auth import CopilotAuthenticator
 from src.exceptions import (
@@ -79,7 +79,7 @@ def validate_prerequisites(
 def get_ticket_number(
     git_ops: GitOperations,
     config: Config,
-    llm_client: Optional[Union[CopilotClient, ClaudeCodeClient]] = None,
+    llm_client: Optional[Union[CopilotClient, VertexAIClient]] = None,
 ) -> str:
     """
     Extract or prompt for ticket number.
@@ -218,9 +218,9 @@ def cli():
 @click.option(
     "--provider",
     "-P",
-    type=click.Choice(["copilot", "claude-code"]),
+    type=click.Choice(["copilot", "vertex"]),
     default=None,
-    help="LLM provider to use (default: from config or 'copilot')",
+    help="LLM provider to use (default: from config or 'vertex')",
 )
 def create(
     base_branch: Optional[str],
@@ -247,7 +247,6 @@ def create(
         git_ops = GitOperations()
         github_ops = GitHubOperations()
 
-        # Validate prerequisites first
         validate_prerequisites(git_ops, github_ops)
 
         # Fetch repo info for PR history (best-effort — failures don't block PR creation)
@@ -262,16 +261,17 @@ def create(
             repo_name = repo_info["name"]
 
         # Initialize LLM client based on configured provider
-        if cfg.provider == "claude-code":
-            llm_client = ClaudeCodeClient(
+        if cfg.provider == "vertex":
+            llm_client = VertexAIClient(
+                project=cfg.vertex_project,
+                location=cfg.vertex_location,
                 model=cfg.model,
-                executable=cfg.claude_code_bin,
                 timeout=cfg.copilot_timeout,
             )
-            console.print("✓ Using Claude Code CLI as LLM provider", style="green")
+            console.print("✓ Using Vertex AI (Gemini) as LLM provider", style="green")
             console.print()
         else:
-            # Default: Copilot provider
+            # copilot provider
             console.print("[bold blue]Authenticating with GitHub Copilot...[/bold blue]")
             authenticator = CopilotAuthenticator(token_dir=cfg.copilot_token_dir)
 

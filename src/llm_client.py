@@ -3,11 +3,16 @@ LLM client module.
 
 Provides LLM client implementations for PR generation:
 - CopilotClient: calls the GitHub Copilot API
-- ClaudeCodeClient: invokes the `claude` CLI subprocess
+- VertexAIClient: calls Google Gemini via Vertex AI
 """
 
+import google.auth
+import google.auth.exceptions
+from google import genai
+from google.genai import types
+from google.genai import errors as genai_errors
 import json
-import subprocess
+import os
 import uuid
 from typing import Optional, Dict, Any
 
@@ -183,13 +188,41 @@ class CopilotClient:
         return response.strip()
 
 
-class ClaudeCodeClient:
-    """Client for interacting with the Claude Code CLI subprocess."""
+class VertexAIClient:
+    """Client for interacting with Google Gemini via Vertex AI."""
 
-    def __init__(self, model: str = "claude-sonnet-4-6", executable: str = "claude", timeout: int = 60):
+    def __init__(
+            self,
+            project: Optional[str] = None,
+            location: Optional[str] = None,
+            model: str = "gemini-2.5-flash",
+            timeout: int = 60,
+    ):
         self.model = model
-        self.executable = executable
         self.timeout = timeout
+
+        if project is None:
+            try:
+                _, project = google.auth.default()
+            except google.auth.exceptions.DefaultCredentialsError as exc:
+                raise LLMError(
+                    "Vertex AI: no credentials found. "
+                    "Run `gcloud auth application-default login` to set up credentials, or specify a project explicitly."
+                ) from exc
+
+        if location is None:
+            location = (
+                os.environ.get("GOOGLE_CLOUD_REGION")
+                or os.environ.get("CLOUDSDK_COMPUTE_REGION")
+                or "europe-west2"
+            )
+
+        self.client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location,
+            http_options=types.HttpOptions(timeout=timeout * 1000),  # milliseconds
+        )
 
     def generate(
         self,
@@ -198,30 +231,49 @@ class ClaudeCodeClient:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
-        # temperature and max_tokens are accepted for interface compatibility but ignored —
-        # the claude CLI does not expose these flags.
-        cmd = [self.executable, "-p", prompt, "--model", self.model]
-        if system:
-            cmd += ["--system", system]
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=temperature,
+            thinking_config=types.ThinkingConfig(thinking_budget=1024),
+            max_output_tokens=32768,
+        )
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=config,
             )
-        except FileNotFoundError:
-            raise LLMError("claude CLI not found. Is Claude Code installed and on PATH?")
-        except subprocess.TimeoutExpired:
-            raise LLMError("claude CLI timed out")
+        except google.auth.exceptions.DefaultCredentialsError as exc:
+            raise LLMError(
+                "Vertex AI: no credentials found. "
+                "Run `gcloud auth application-default login` to set up credentials."
+            ) from exc
+        except genai_errors.APIError as exc:
+            raise LLMError(f"Vertex AI API error: {exc}") from exc
 
-        if result.returncode != 0:
-            raise LLMError(f"claude CLI failed: {result.stderr.strip()}")
-
-        content = result.stdout.strip()
+        # Extract text from response. response.text raises when there are no output
+        # text parts (e.g. only thinking parts). Fall back to manual extraction.
+        try:
+            raw = response.text
+            content = raw.strip() if raw is not None else ""
+        except Exception as exc:
+            content = ""
+            candidates = getattr(response, "candidates", None) or []
+            if candidates:
+                candidate = candidates[0]
+                cc = getattr(candidate, "content", None)
+                for part in (getattr(cc, "parts", None) or []):
+                    if not getattr(part, "thought", False) and getattr(part, "text", ""):
+                        content += part.text
+            content = content.strip()
+            if not content:
+                finish = getattr(candidates[0] if candidates else None, "finish_reason", "unknown")
+                raise LLMError(
+                    f"Vertex AI returned empty response (finish_reason={finish}): {exc}"
+                ) from exc
         if not content:
-            raise LLMError("claude CLI returned empty response")
+            raise LLMError("Vertex AI returned empty response")
 
         return content
 
@@ -271,3 +323,4 @@ class ClaudeCodeClient:
             diff_summary=diff_summary,
         )
         return self.generate(prompt=prompt, temperature=0.3).strip()
+
