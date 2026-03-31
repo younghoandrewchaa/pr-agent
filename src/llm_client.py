@@ -248,8 +248,24 @@ class VertexAIClient:
 
         try:
             content = response.text.strip()
-        except Exception:
+        except Exception as exc:
+            # response.text raises when there are no text parts (e.g. only thinking parts).
+            # Fall back to iterating candidates manually.
             content = ""
+            if hasattr(response, "candidates") and response.candidates:
+                for part in response.candidates[0].content.parts:
+                    if not getattr(part, "thought", False) and getattr(part, "text", ""):
+                        content += part.text
+            content = content.strip()
+            if not content:
+                finish = getattr(
+                    response.candidates[0] if response.candidates else None,
+                    "finish_reason",
+                    "unknown",
+                )
+                raise LLMError(
+                    f"Vertex AI returned empty response (finish_reason={finish}): {exc}"
+                ) from exc
         if not content:
             raise LLMError("Vertex AI returned empty response")
 
