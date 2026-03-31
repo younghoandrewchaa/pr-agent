@@ -33,6 +33,10 @@ class Config:
     provider: str = "copilot"
     claude_code_bin: str = "claude"
 
+    # Vertex AI settings
+    vertex_project: Optional[str] = None
+    vertex_location: Optional[str] = None
+
     # Git settings
     default_base_branch: str = "main"
     ticket_pattern: str = r"STAR-(\d+)"
@@ -102,6 +106,8 @@ class Config:
             "open_in_browser",
             "provider",
             "claude_code_bin",
+            "vertex_project",
+            "vertex_location",
         }
 
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
@@ -133,6 +139,8 @@ class Config:
             "PR_AGENT_MAX_DIFF_TOKENS": "max_diff_tokens",
             "PR_AGENT_PROVIDER": "provider",
             "PR_AGENT_CLAUDE_BIN": "claude_code_bin",
+            "PR_AGENT_VERTEX_PROJECT": "vertex_project",
+            "PR_AGENT_VERTEX_LOCATION": "vertex_location",
         }
 
         for env_var, attr_name in env_mapping.items():
@@ -194,6 +202,8 @@ class Config:
         draft: Optional[bool] = None,
         web: Optional[bool] = None,
         provider: Optional[str] = None,
+        vertex_project: Optional[str] = None,
+        vertex_location: Optional[str] = None,
     ) -> "Config":
         """
         Create new config with CLI arguments taking precedence.
@@ -204,6 +214,8 @@ class Config:
             draft: Draft PR flag
             web: Open in browser flag
             provider: LLM provider override ("copilot" or "claude-code")
+            vertex_project: Vertex AI project override
+            vertex_location: Vertex AI location override
 
         Returns:
             New Config instance with merged values.
@@ -223,6 +235,8 @@ class Config:
             open_in_browser=web if web is not None else self.open_in_browser,
             provider=provider or self.provider,
             claude_code_bin=self.claude_code_bin,
+            vertex_project=self.vertex_project,
+            vertex_location=self.vertex_location,
         )
 
         return new_config
