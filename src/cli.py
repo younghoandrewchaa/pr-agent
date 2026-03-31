@@ -432,6 +432,7 @@ def create(
         feedback_history = []
         max_iterations = 5  # Prevent infinite loops
         iteration = 0
+        description = ""
 
         while iteration < max_iterations:
             iteration += 1
@@ -447,11 +448,12 @@ def create(
                         related_prs_context=related_prs_context,
                     )
             else:
-                description = pr_generator.generate_description(
-                    user_intent=user_intent,
-                    base_branch=cfg.default_base_branch,
-                    related_prs_context=related_prs_context,
-                )
+                with console.status("[bold green]Generating PR description with AI...[/bold green]"):
+                    description = pr_generator.generate_description(
+                        user_intent=user_intent,
+                        base_branch=cfg.default_base_branch,
+                        related_prs_context=related_prs_context,
+                    )
 
             # Display preview
             display_preview(title, description, cfg.default_base_branch)
