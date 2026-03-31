@@ -204,8 +204,7 @@ class TestVertexAIClient:
         mock_response.text = "Response"
         mock_client_cls.return_value.models.generate_content.return_value = mock_response
         from src.llm_client import VertexAIClient
-        client = VertexAIClient(project="proj", location="us-central1", timeout=45)
-        client.generate("prompt")
-        call_kwargs = mock_client_cls.return_value.models.generate_content.call_args.kwargs
-        assert call_kwargs["request_options"] == {"timeout": 45}
+        VertexAIClient(project="proj", location="us-central1", timeout=45)
+        kw = mock_client_cls.call_args.kwargs
+        assert kw["http_options"].timeout == 45 * 1000
 

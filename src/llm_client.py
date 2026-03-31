@@ -243,7 +243,6 @@ class VertexAIClient:
                 model=self.model,
                 contents=prompt,
                 config=config,
-                request_options={"timeout": self.timeout},
             )
         except google.auth.exceptions.DefaultCredentialsError as exc:
             raise LLMError(
