@@ -6,7 +6,13 @@ Provides LLM client implementations for PR generation:
 - ClaudeCodeClient: invokes the `claude` CLI subprocess
 """
 
+import google.auth
+import google.auth.exceptions
+import google.api_core.exceptions
+import vertexai
+import vertexai.generative_models
 import json
+import os
 import subprocess
 import uuid
 from typing import Optional, Dict, Any
@@ -271,3 +277,122 @@ class ClaudeCodeClient:
             diff_summary=diff_summary,
         )
         return self.generate(prompt=prompt, temperature=0.3).strip()
+
+class VertexAIClient:
+    """Client for interacting with Google Gemini via Vertex AI."""
+
+    def __init__(
+            self,
+            project: Optional[str] = None,
+            location: Optional[str] = None,
+            model: str = "gemini-2.5-flash",
+            timeout: int = 60,
+    ):
+        self.model = model
+        self.timeout = timeout
+
+        if project is None:
+            try:
+                _, project = google.auth.default()
+            except google.auth.exceptions.DefaultCredentialsError as exc:
+                raise LLMError(
+                    "Vertex AI: no credentials found. "
+                    "Run `gcloud auth application-default login` to set up credentials, or specify a project explicitly."
+                ) from exc
+
+        if location is None:
+            location = (
+                os.environ.get("GOOGLE_CLOUD_REGION")
+                or os.environ.get("CLOUDSDK_COMPUTE_REGION")
+                or "eu-west1"
+            )
+
+        vertexai.init(project=project, location=location)
+
+    def _get_model(self, system: Optional[str]) -> vertexai.generative_models.GenerativeModel:
+        kwargs: Dict[str, Any] = {}
+        if system:
+            kwargs["system_instruction"] = system
+
+        return vertexai.generative_models.GenerativeModel(self.model, **kwargs)
+
+    def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        from vertexai.generative_models import GenerationConfig
+
+        generation_config = GenerationConfig(temperature=temperature)
+        if max_tokens is not None:
+            generation_config = GenerationConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+
+        try:
+            model = self._get_model(system)
+            response = model.generate_content(prompt, generation_config=generation_config)
+        except google.auth.exceptions.DefaultCredentialsError as exc:
+            raise LLMError(
+                "Vertex AI: no credentials found. "
+                "Run `gcloud auth application-default login` to set up credentials."
+            ) from exc
+        except google.api_core.exceptions.GoogleAPIError as exc:
+            raise LLMError(f"Vertex AI API error: {exc}") from exc
+
+        content = response.text.strip() if hasattr(response, "text") else ""
+        if not content:
+            raise LLMError("Vertex AI returned empty response")
+
+        return content
+
+    def generate_with_context(
+        self,
+        prompt: str,
+        context: Optional[str] = None,
+        max_context_length: int = 8000,
+    ) -> str:
+        full_prompt = prompt
+        if context:
+            if len(context) > max_context_length:
+                context = context[:max_context_length] + "\n\n... (diff truncated)"
+            full_prompt = f"{prompt}\n\nContext:\n{context}"
+        return self.generate(full_prompt)
+
+    def extract_ticket_number(
+        self,
+        branch_name: str,
+        ticket_prefix: str = "STAR",
+    ) -> Optional[str]:
+        from src.prompts import PRPrompts
+        import re
+
+        prompt = PRPrompts.extract_ticket_number_prompt(branch_name, ticket_prefix)
+        response = self.generate(prompt=prompt, temperature=0.1)
+        response = response.strip().upper()
+        if response == "NONE" or not response:
+            return None
+        match = re.search(rf"{ticket_prefix.upper()}-\d+", response)
+        if match:
+            return match.group(0)
+        return None
+
+    def generate_commit_message(
+        self,
+        ticket_number: str,
+        changed_files: list,
+        diff: str,
+    ) -> str:
+        from src.prompts import PRPrompts
+
+        diff_summary = PRPrompts.extract_diff_summary(diff, max_length=2000)
+        prompt = PRPrompts.generate_commit_message_prompt(
+            ticket_number=ticket_number,
+            changed_files=changed_files,
+            diff_summary=diff_summary,
+        )
+        return self.generate(prompt=prompt, temperature=0.3).strip()
+
