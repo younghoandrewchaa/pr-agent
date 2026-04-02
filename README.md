@@ -1,77 +1,95 @@
 # PR Agent
 
-Automated GitHub pull request creation using GitHub Copilot (Claude Haiku 4.5).
+Automated GitHub pull request creation using AI — supports **GitHub Copilot** (Claude Haiku 4.5) and **Google Gemini via Vertex AI** (default).
 
-PR Agent is a CLI tool that analyzes your code changes and generates intelligent, comprehensive PR descriptions using Claude Haiku 4.5 via GitHub Copilot. It extracts ticket numbers from branch names, prompts you for context, and creates well-structured pull requests on GitHub.
+PR Agent is a CLI tool that analyzes your code changes and generates intelligent, comprehensive PR descriptions. It extracts ticket numbers from branch names, prompts you for context, and creates well-structured pull requests on GitHub.
 
 ## Features
 
-- **Claude Haiku 4.5 via GitHub Copilot**: Uses enterprise-grade LLM (requires Copilot subscription)
+- **Two LLM providers**: Gemini via Vertex AI (default) or Claude Haiku 4.5 via GitHub Copilot
 - **Intelligent PR Descriptions**: Generates comprehensive PR descriptions based on code changes
-- **Smart Ticket Extraction**: AI-powered extraction handles any branch naming convention (regex → AI → manual fallback)
-- **Auto-Detect Base Branch**: Automatically detects default branch (main, master, develop) - no configuration needed
+- **Description Feedback Loop**: Reject and refine the generated description with feedback (up to 5 iterations)
+- **Auto-Commit**: Offers to commit uncommitted changes with an AI-generated commit message
+- **Smart Ticket Extraction**: AI-powered extraction handles any branch naming convention (regex → AI → auto-generate)
+- **Auto-Detect Base Branch**: Automatically detects default branch (main, master, develop)
 - **Git Integration**: Analyzes diffs, changed files, and commit messages
-- **GitHub CLI**: Seamlessly creates PRs using `gh` command
-- **Customizable Templates**: Configure PR sections to match your workflow
-- **Preview Mode**: Review generated content before creating PR
+- **GitHub CLI**: Seamlessly creates PRs using the `gh` command
+- **PR Templates**: Reads `.github/pull_request_template.md` from your repository automatically
+- **Preview Mode**: Review generated content before creating the PR
 - **Draft PR Support**: Create draft PRs for work-in-progress
 
 ## Prerequisites
 
-Before using PR Agent, ensure you have:
+- **Python 3.10+**
+- **GitHub CLI** (`gh`) — authenticated with `gh auth login`
 
-1. **Python 3.10+** installed
-2. **GitHub Copilot subscription** (individual or enterprise)
-3. **GitHub account** - You'll authenticate via OAuth device flow on first run
+**Vertex AI provider (default):**
+- A Google Cloud project with Vertex AI enabled
+- Application Default Credentials: run `gcloud auth application-default login`
 
-**Note**: No manual token setup needed! The tool handles authentication automatically.
+**Copilot provider:**
+- GitHub Copilot subscription (individual or enterprise)
+- Authentication is handled automatically via OAuth device flow on first run
 
 ## Installation
 
+Install directly from GitHub (no cloning required):
+
 ```bash
-# Clone or navigate to the pr-agent directory
-cd /Users/youngho.chaa/github/pr-agent
+pip install git+https://github.com/andrewchaa/pr-agent.git
+```
 
-# Install in development mode
-pip install -e .
+Or with [pipx](https://pipx.pypa.io/) for isolated CLI installs (recommended):
 
-# Or install for production
-pip install .
+```bash
+pipx install git+https://github.com/andrewchaa/pr-agent.git
+```
+
+To upgrade to the latest version:
+
+```bash
+pip install --upgrade git+https://github.com/andrewchaa/pr-agent.git
+# or
+pipx upgrade pr-agent
 ```
 
 ## Quick Start
 
 1. Make some code changes in a git repository
-2. **Commit your changes** to a feature branch (preferably with a ticket number in the name)
-   ```bash
-   git add .
-   git commit -m "Your commit message"
-   # Optional: push your changes
-   git push -u origin your-branch-name
-   ```
-3. Run PR Agent:
+2. Run PR Agent:
    ```bash
    pr-agent create
    ```
-4. **First run only**: Authenticate with GitHub Copilot
-   - Visit the URL shown (e.g., `github.com/login/device`)
-   - Enter the device code displayed
-   - Authorize the application
-   - Token is cached for future use
+3. **First run with Vertex AI**: ensure you have run `gcloud auth application-default login`
+4. **First run with Copilot**: follow the device flow shown in the terminal to authorize
 5. Answer the prompt about your change purpose
-6. Review the generated PR preview
+6. Review the generated PR description — provide feedback to regenerate if needed
 7. Confirm to create the PR
 
-**Note:** You must commit your changes BEFORE running pr-agent. The tool analyzes committed changes, not uncommitted files.
+**Note:** You can run `pr-agent create` with uncommitted changes — it will offer to commit them with an AI-generated commit message before creating the PR.
 
 ## Usage
 
 ### Basic Usage
 
-Create a PR with default settings:
-
 ```bash
 pr-agent create
+```
+
+### Select Provider
+
+```bash
+# Use GitHub Copilot (Claude Haiku 4.5)
+pr-agent create --provider copilot
+
+# Use Vertex AI / Gemini (default)
+pr-agent create --provider vertex
+```
+
+### Specify Model
+
+```bash
+pr-agent create --model gemini-2.5-pro
 ```
 
 ### Specify Base Branch
@@ -92,54 +110,11 @@ pr-agent create --dry-run
 pr-agent create --draft
 ```
 
-### Typical Workflow
-
-PR Agent works with **committed changes only**. Here are two common workflows:
-
-**Workflow 1: Commit first, then create PR**
-```bash
-# 1. Make your changes
-vim myfile.py
-
-# 2. Commit them
-git add .
-git commit -m "Implement new feature"
-
-# 3. Run pr-agent (it will push if needed)
-pr-agent create
-```
-
-**Workflow 2: Commit and push, then create PR**
-```bash
-# 1. Make changes and commit
-git add .
-git commit -m "Fix bug in processor"
-
-# 2. Push to remote
-git push -u origin my-feature-branch
-
-# 3. Run pr-agent
-pr-agent create
-# ✓ Works! PR Agent analyzes your committed changes
-```
-
-**What doesn't work:**
-```bash
-# ✗ This won't work - changes not committed
-vim myfile.py
-pr-agent create
-# Error: No commits found
-```
-
 ### Open PR in Browser
 
 ```bash
 pr-agent create --web
 ```
-
-### Use Custom Model
-
-The model is configured to use Claude Haiku 4.5 via GitHub Copilot and cannot be changed at runtime.
 
 ### Use Custom Config File
 
@@ -149,7 +124,7 @@ pr-agent create --config ~/my-config.yaml
 
 ## Configuration
 
-PR Agent supports configuration through multiple sources (in order of precedence):
+Configuration sources (highest to lowest priority):
 
 1. **Command-line arguments** (highest priority)
 2. **Config file**: `~/.config/pr-agent/config.yaml`
@@ -167,14 +142,19 @@ This creates `~/.config/pr-agent/config.yaml` with default settings.
 ### Configuration Options
 
 ```yaml
-# Model settings
-model: "claude-haiku-4.5"
+# Provider: "vertex" (default) or "copilot"
+provider: "vertex"
+
+# Model (default depends on provider)
+model: "gemini-2.5-flash"
+
+# Vertex AI settings (required when provider is "vertex")
+# vertex_project: "my-gcp-project"
+# vertex_location: "europe-west2"
+
+# Copilot settings (used when provider is "copilot")
 copilot_api_base: "https://api.githubcopilot.com"
 copilot_timeout: 60
-
-# Authentication (optional)
-# Token directory for cached credentials (default: ~/.config/pr-agent/copilot)
-# copilot_token_dir: "/custom/path/to/tokens"
 
 # Git settings
 default_base_branch: "main"
@@ -186,69 +166,98 @@ max_diff_tokens: 8000
 
 ### Environment Variables
 
-Configuration options can be set via environment variables with the `PR_AGENT_` prefix:
-
 ```bash
-export PR_AGENT_BASE_BRANCH="develop"
+# Provider
+export PR_AGENT_PROVIDER="vertex"
+
+# Vertex AI
+export PR_AGENT_VERTEX_PROJECT="my-gcp-project"
+export PR_AGENT_VERTEX_LOCATION="europe-west2"
+
+# Copilot
 export PR_AGENT_COPILOT_TOKEN_DIR="/custom/path"
+
+# General
+export PR_AGENT_BASE_BRANCH="develop"
+export PR_AGENT_MODEL="gemini-2.5-pro"
 ```
 
 ## Branch Naming Convention
 
-PR Agent uses **intelligent ticket extraction** with a two-step approach:
+PR Agent uses **intelligent ticket extraction** with a three-step approach:
 
-### Extraction Methods
-
-1. **Regex Pattern Matching** (fast) - Tries pattern matching first
-2. **AI Extraction** (flexible) - If regex fails, uses LLM to intelligently extract the ticket
-3. **Manual Input** (fallback) - Prompts you to enter the ticket number
+1. **Regex Pattern Matching** (fast) — tries pattern matching first
+2. **AI Extraction** (flexible) — if regex fails, uses the LLM to extract the ticket
+3. **Auto-generate** — derives a 4-letter prefix from the repo name + random number (e.g. `PAGE-38471`)
 
 ### Supported Branch Name Formats
 
-PR Agent handles virtually any branch naming convention! Examples:
+```
+feature/STAR-12345-add-feature
+STAR-999-bugfix
+star-422270-test              ← lowercase, AI handles it
+feature_star_123_something    ← underscores
+bugfix-with-star-789-somewhere
+```
 
-**Standard formats:**
-- `feature/STAR-12345-add-feature`
-- `STAR-999-bugfix`
-- `bugfix/STAR-456-fix-memory-leak`
-
-**Variations the AI can handle:**
-- `star-422270-test` (lowercase)
-- `feature_star_123_something` (underscores)
-- `bugfix-with-star-789-somewhere` (ticket in middle)
-- `star123feature` (no separators)
-- `my-feature-with-STAR-999` (any position)
-
-**Note:**
-- Regex extraction is **case-insensitive** and normalizes to uppercase (e.g., `star-123` → `STAR-123`)
-- AI extraction is extremely flexible and can find tickets in unconventional branch names
-- Default pattern: `STAR-(\d+)` (customizable in config)
-
-The AI extraction means you don't need to follow strict branch naming rules!
+Default pattern: `STAR-(\d+)` — customizable in config.
 
 ## How It Works
 
-1. **Validation**: Checks for git repo and GitHub CLI authentication
-2. **Copilot Authentication**:
-   - Checks for cached Copilot token
-   - If not found, triggers OAuth device flow
-   - User authorizes via browser
-   - Token cached for ~2 hours
-3. **Information Gathering**:
-   - Extracts current branch name
-   - Intelligently parses ticket number (regex → AI → manual)
-   - Retrieves git diff and changed files
-   - Prompts user for change purpose
-4. **AI Generation**:
-   - Generates PR title using ticket number and user intent
-   - Analyzes code changes to answer template questions
-   - Creates comprehensive PR description
-5. **Review & Create**:
-   - Shows preview of generated PR
-   - Pushes branch if needed
-   - Creates PR on GitHub
+1. **Validation**: checks for git repo and GitHub CLI authentication
+2. **Provider setup**: connects to Vertex AI (default) or authenticates with GitHub Copilot
+3. **Repo info**: fetches owner/repo for PR history (best-effort, failures non-fatal)
+4. **Ticket extraction**: regex → AI → auto-generate
+5. **Auto-commit** (if uncommitted changes): offers to stage and commit with an AI-generated message
+6. **User intent**: prompts you to describe the purpose of your change
+7. **PR generation**: generates title and description based on your diff, commits, and template
+8. **Related PRs**: finds associated previous PRs to add context to the description
+9. **Feedback loop**: lets you reject and refine the description with up to 5 iterations
+10. **Create PR**: pushes branch if needed, creates the PR on GitHub, saves to history
 
 ## Troubleshooting
+
+### Vertex AI: no credentials found
+
+Run the following and follow the prompts:
+
+```bash
+gcloud auth application-default login
+```
+
+Alternatively, set a service account key:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
+```
+
+### Vertex AI: project not set
+
+Specify your project in the config or as an environment variable:
+
+```bash
+export PR_AGENT_VERTEX_PROJECT="my-gcp-project"
+```
+
+Or in `~/.config/pr-agent/config.yaml`:
+
+```yaml
+vertex_project: "my-gcp-project"
+```
+
+### Copilot: authentication failed
+
+Clear cached tokens and re-authenticate:
+
+```bash
+rm -rf ~/.config/pr-agent/copilot
+pr-agent create --provider copilot
+```
+
+Then follow the device flow:
+1. Visit the URL shown (e.g., `github.com/login/device`)
+2. Enter the 8-character code displayed
+3. Click "Authorize"
 
 ### Error: Not in a git repository
 
@@ -258,67 +267,29 @@ Make sure you're running the command from within a git repository.
 
 Run `gh auth login` to authenticate with GitHub.
 
-### Error: Copilot authentication failed
-
-PR Agent uses OAuth device flow for authentication. If you see this error:
-
-1. **First time users**: The device flow will trigger automatically
-   ```bash
-   pr-agent create
-   # Follow the on-screen instructions
-   ```
-
-2. **Token expired**: Clear cached tokens and re-authenticate
-   ```bash
-   rm -rf ~/.config/pr-agent/copilot
-   pr-agent create
-   ```
-
-3. **Verify Copilot subscription**:
-   - Visit https://github.com/settings/copilot
-   - Ensure you have an active subscription
-   - Check that API access is enabled
-
-4. **Device flow steps**:
-   - Visit the URL shown (e.g., `github.com/login/device`)
-   - Enter the 8-character code displayed
-   - Click "Authorize"
-   - Return to terminal to continue
-
 ### Error: Base branch 'main' not found
 
-PR Agent **auto-detects** your repository's default branch. If you see this error:
+PR Agent auto-detects your default branch. You can also specify it explicitly:
 
-1. **Let PR Agent detect it automatically** (recommended):
-   ```bash
-   pr-agent create
-   # It will auto-detect: master, main, develop, etc.
-   ```
+```bash
+pr-agent create --base-branch master
+```
 
-2. **Manually specify the base branch**:
-   ```bash
-   pr-agent create --base-branch master
-   ```
+Or set a default in `~/.config/pr-agent/config.yaml`:
 
-3. **Update your config file** to set a different default:
-   ```yaml
-   # ~/.config/pr-agent/config.yaml
-   default_base_branch: "master"  # or develop, etc.
-   ```
-
-The error message will suggest available branches in your repository.
+```yaml
+default_base_branch: "master"
+```
 
 ### Empty or poor quality PR descriptions
 
-- Ensure your git diff contains meaningful changes
 - Provide a clear description when prompted for change purpose
 - Try increasing `max_diff_tokens` in config for complex changes
 
 ### PR creation fails
 
-- Ensure your branch is up to date with the base branch
 - Check that you have push permissions to the repository
-- Verify GitHub CLI is properly authenticated with `gh auth status`
+- Verify GitHub CLI is authenticated with `gh auth status`
 
 ## Development
 
@@ -334,13 +305,15 @@ pr-agent/
 │   ├── copilot_auth.py       # OAuth device flow authenticator
 │   ├── git_operations.py     # Git interactions
 │   ├── github_operations.py  # GitHub CLI wrapper
-│   ├── llm_client.py         # GitHub Copilot API client
+│   ├── llm_client.py         # Copilot and Vertex AI clients
 │   ├── pr_generator.py       # PR generation logic
+│   ├── pr_history.py         # Per-repo PR history
 │   ├── prompts.py            # LLM prompt templates
+│   ├── template_parser.py    # PR template parsing
 │   └── exceptions.py         # Custom exceptions
 ├── tests/                    # Test suite
-├── examples/                 # Example configurations
-└── pyproject.toml           # Project configuration
+├── pyproject.toml            # Project configuration
+└── release.sh                # Release script
 ```
 
 ### Running Tests
@@ -357,92 +330,6 @@ black src/
 ruff check src/
 ```
 
-## Examples
-
-### Example 1: Standard Branch Format
-
-```bash
-# On branch: feature/STAR-12345-add-oauth
-$ pr-agent create
-
-✓ Git repository detected
-✓ GitHub CLI authenticated
-✓ Copilot API key configured
-
-Current branch: feature/STAR-12345-add-oauth
-
-✓ Detected ticket number (regex): STAR-12345
-
-What is the purpose of this change?
-> Add OAuth 2.0 authentication flow for third-party integrations
-
-[Generating PR description...]
-
-PR Preview:
-Title: STAR-12345: Add OAuth 2.0 authentication flow
-
-Create this pull request? [Y/n]: y
-✓ Pull request created successfully!
-URL: https://github.com/org/repo/pull/123
-```
-
-### Example 1b: Unconventional Branch Name (AI Extraction)
-
-```bash
-# On branch: bugfix_with_star_422270_somewhere
-$ pr-agent create
-
-✓ Git repository detected
-✓ GitHub CLI authenticated
-✓ Copilot API key configured
-
-Current branch: bugfix_with_star_422270_somewhere
-
-Regex pattern didn't match. Trying AI extraction...
-[Analyzing branch name with AI...]
-✓ Detected ticket number (AI): STAR-422270
-
-What is the purpose of this change?
-> Fix memory leak in background processor
-
-[Generating PR description...]
-```
-
-### Example 2: Bug Fix with Custom Base
-
-```bash
-$ pr-agent create --base-branch develop --draft
-
-[Similar flow, creates draft PR against develop branch]
-```
-
-### Example 3: Dry Run
-
-```bash
-$ pr-agent create --dry-run
-
-[Shows preview without creating PR]
-Dry run mode - PR not created
-```
-
-## Advanced Usage
-
-### Custom Ticket Patterns
-
-For JIRA-style tickets:
-```yaml
-ticket_pattern: "([A-Z]+-\\d+)"
-```
-
-For Linear tickets:
-```yaml
-ticket_pattern: "(ENG-\\d+)"
-```
-
-### Repository-Specific Configuration
-
-Create `.pr-agent.yaml` in your repository root for project-specific settings.
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
@@ -451,14 +338,8 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 MIT License
 
-## Support
-
-For issues and questions:
-- Create an issue in the GitHub repository
-- Check the troubleshooting section above
-
 ## Acknowledgments
 
-- Built with [GitHub Copilot](https://github.com/features/copilot) for enterprise-grade LLM access
-- Uses [Claude Haiku 4.5](https://www.anthropic.com/claude) by Anthropic
+- Uses [Google Gemini](https://deepmind.google/technologies/gemini/) via [Vertex AI](https://cloud.google.com/vertex-ai) (default provider)
+- Uses [Claude Haiku 4.5](https://www.anthropic.com/claude) via [GitHub Copilot](https://github.com/features/copilot) (alternative provider)
 - Powered by [GitHub CLI](https://cli.github.com/)
